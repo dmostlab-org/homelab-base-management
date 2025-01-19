@@ -16,6 +16,16 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Prompt for domain name if not provided
+if [ -z "$DOMAIN_NAME" ]; then
+    read -p "Enter domain for CA common name: " DOMAIN_NAME
+fi
+
+if [ -z "$DOMAIN_NAME" ]; then
+    log "Domain name is required"
+    exit 1
+fi
+
 # Update system and install prerequisites
 log "Updating system packages..."
 apt-get update && apt-get upgrade -y
@@ -105,6 +115,23 @@ volumes:
 EOL
 
 docker-compose -f "$PORTAINER_COMPOSE_DIR/docker-compose.yml" up -d
+
+# Wait for Vault to be ready
+log "Waiting for Vault to be ready..."
+sleep 10
+
+# Enable PKI and SSH secrets engines in Vault
+log "Enabling PKI and SSH secrets engines in Vault..."
+export VAULT_ADDR='http://127.0.0.1:8200'
+export VAULT_TOKEN='root'
+
+vault secrets enable pki
+vault secrets tune -max-lease-ttl=8760h pki
+vault write pki/root/generate/internal common_name="$DOMAIN_NAME" ttl=8760h
+vault write pki/config/urls issuing_certificates="$VAULT_ADDR/v1/pki/ca" crl_distribution_points="$VAULT_ADDR/v1/pki/crl"
+
+vault secrets enable ssh
+vault write ssh/config/ca generate_signing_key=true
 
 log "Bootstrap complete. Docker Compose configurations are stored in $COMPOSE_DIR."
 log "Please log out and log back in to ensure Docker group permissions are applied."
