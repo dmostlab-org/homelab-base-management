@@ -55,4 +55,10 @@ echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://
 apt-get update
 apt-get install -y terraform
 
+# Install Vault CLI
+log "Installing Vault CLI..."
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list
+apt-get update
+apt-get install -y vault
+
 log "Dependency installation complete."
