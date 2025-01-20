@@ -27,6 +27,11 @@ read -p "Enter the hostname for the SSL certificate (used for Vault's HTTPS conf
 HOST_IP=$(hostname -I | awk '{print $1}')
 log "Detected host IP: $HOST_IP"
 
+
+# Make scripts executable
+chmod +x install_dependencies.sh setup_vault.sh setup_portainer.sh configure_vault_ca.sh configure_vault.sh
+
+
 # Export variables for use in other scripts
 export DOMAIN_NAME
 export HOSTNAME
