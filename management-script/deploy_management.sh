@@ -74,7 +74,6 @@ VAULT_COMPOSE_DIR="$COMPOSE_DIR/vault"
 mkdir -p "$VAULT_COMPOSE_DIR"
 
 cat > "$VAULT_COMPOSE_DIR/docker-compose.yml" <<EOL
-version: '3.8'
 services:
   vault:
     image: hashicorp/vault:latest
@@ -99,7 +98,6 @@ PORTAINER_COMPOSE_DIR="$COMPOSE_DIR/portainer"
 mkdir -p "$PORTAINER_COMPOSE_DIR"
 
 cat > "$PORTAINER_COMPOSE_DIR/docker-compose.yml" <<EOL
-version: '3.8'
 services:
   portainer:
     image: portainer/portainer-ce:latest
@@ -125,9 +123,26 @@ log "Enabling PKI and SSH secrets engines in Vault..."
 export VAULT_ADDR='http://127.0.0.1:8200'
 export VAULT_TOKEN='root'
 
+cat <<EOF > /tmp/ssh-role.json
+{
+  "algorithm_signer": "rsa-sha2-256",
+  "allow_user_certificates": true,
+  "allowed_users": "*",
+  "allowed_extensions": "permit-pty,permit-port-forwarding",
+  "default_extensions": {
+    "permit-pty": {}
+  },
+  "key_type": "ca",
+  "default_user": "bigboss",
+  "ttl": "30m0s"
+}
+EOF
+
+
 docker exec -e VAULT_ADDR=$VAULT_ADDR -e VAULT_TOKEN=$VAULT_TOKEN vault vault secrets enable -path=ssh-client-signer ssh
-docker exec -e VAULT_ADDR=$VAULT_ADDR -e VAULT_TOKEN=$VAULT_TOKEN vault vault write ssh-client-signer/config/ca generate_signing_key=true
-docker exec -e VAULT_ADDR=$VAULT_ADDR -e VAULT_TOKEN=$VAULT_TOKEN vault vault write ssh-client-signer/roles/my-role -<<"EOH"
+docker exec -e VAULT_ADDR=$VAULT_ADDR -e VAULT_TOKEN=$VAULT_TOKEN vault vault write ssh-client-signer/config/ca generate_signing_key=true 
+docker exec -i -e VAULT_ADDR=$VAULT_ADDR -e VAULT_TOKEN=$VAULT_TOKEN vault vault write ssh-client-signer/roles/my-role - < /tmp/ssh-role.json
+rm /tmp/ssh-role.json
 
 
 log "Bootstrap complete. Docker Compose configurations are stored in $COMPOSE_DIR."
