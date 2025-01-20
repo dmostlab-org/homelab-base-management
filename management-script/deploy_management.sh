@@ -125,9 +125,9 @@ log "Enabling PKI and SSH secrets engines in Vault..."
 export VAULT_ADDR='http://127.0.0.1:8200'
 export VAULT_TOKEN='root'
 
-docker exec -it vault vault secrets enable -path=ssh-client-signer ssh
-docker exec -it vault vault write ssh-client-signer/config/ca generate_signing_key=true
-docker exec -it vault vault write ssh-client-signer/roles/my-role -<<"EOH"
+docker exec -e VAULT_ADDR=$VAULT_ADDR -e VAULT_TOKEN=$VAULT_TOKEN vault vault secrets enable -path=ssh-client-signer ssh
+docker exec -e VAULT_ADDR=$VAULT_ADDR -e VAULT_TOKEN=$VAULT_TOKEN vault vault write ssh-client-signer/config/ca generate_signing_key=true
+docker exec -e VAULT_ADDR=$VAULT_ADDR -e VAULT_TOKEN=$VAULT_TOKEN vault vault write ssh-client-signer/roles/my-role -<<"EOH"
 
 
 log "Bootstrap complete. Docker Compose configurations are stored in $COMPOSE_DIR."
