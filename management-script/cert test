@@ -1,0 +1,5 @@
+vault write -format=json pki_int/issue/dmostlab-dot-local \
+common_name="manage.dmostlab.local" ip_sans="10.0.20.30" | tee \
+>(jq -r .data.certificate > manage-tls-certificate.pem) \
+>(jq -r .data.issuing_ca > manage-tls-issuing-ca.pem) \
+>(jq -r .data.private_key > manage-tls-private-key.pem)
