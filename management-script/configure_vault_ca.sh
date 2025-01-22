@@ -19,25 +19,70 @@ log "Enabling PKI secrets engine in Vault..."
 export VAULT_ADDR='http://127.0.0.1:8200'
 export VAULT_TOKEN='root'
 
-docker exec -e VAULT_ADDR=$VAULT_ADDR -e VAULT_TOKEN=$VAULT_TOKEN vault vault secrets enable pki
-docker exec -e VAULT_ADDR=$VAULT_ADDR -e VAULT_TOKEN=$VAULT_TOKEN vault vault secrets tune -max-lease-ttl=8760h pki
-docker exec -e VAULT_ADDR=$VAULT_ADDR -e VAULT_TOKEN=$VAULT_TOKEN vault vault write pki/root/generate/internal common_name="$DOMAIN_NAME" ttl=8760h key_type="rsa" key_bits="2048"
-docker exec -e VAULT_ADDR=$VAULT_ADDR -e VAULT_TOKEN=$VAULT_TOKEN vault vault write pki/config/urls issuing_certificates="$VAULT_ADDR/v1/pki/ca" crl_distribution_points="$VAULT_ADDR/v1/pki/crl"
+vault secrets enable pki
+vault secrets tune -max-lease-ttl=8760h pki
+vault write -field=certificate pki/root/generate/internal \
+     common_name="$DOMAIN_NAME" \
+     issuer_name="vault-ssl" \
+     ttl=87600h key_type="rsa" key_bits="2048"> vault_ssl_ca.crt
+
+vault write pki/roles/ssl-servers allow_any_name=true
+
+vault write pki/config/urls issuing_certificates="$VAULT_ADDR/v1/pki/ca" crl_distribution_points="$VAULT_ADDR/v1/pki/crl"
+
+# Generate Intermediate CA
+log "Generating Intermediate CA..." 
+vault secrets enable -path=pki_int pki
+vault secrets tune -max-lease-ttl=43800h pki_int
+
+vault write -format=json pki_int/intermediate/generate/internal \
+     common_name="$DOMAIN_NAME Intermediate Authority" \
+     issuer_name="$DOMAIN_NAME-intermediate" \
+     | jq -r '.data.csr' > pki_intermediate.csr
+
+vault write -format=json pki/root/sign-intermediate \
+     issuer_ref="vault-ssl" \
+     csr=@pki_intermediate.csr \
+     format=pem_bundle ttl="43800h" \
+     | jq -r '.data.certificate' > intermediate.cert.pem
+
+vault write pki_int/intermediate/set-signed certificate=@intermediate.cert.pem
+
+
+#Create a role for generating certificates
+vault write pki_int/roles/$DOMAIN_NAME-dot-local \
+     issuer_ref="$(vault read -field=default pki_int/config/issuers)" \
+     allowed_domains="$DOMAIN_NAME" \
+     allow_subdomains=true \
+     max_ttl="8760h"
+
+
+
+# Define the directory for certificates
+CERT_DIR="$VAULT_COMPOSE_DIR/certs"
+mkdir -p $CERT_DIR
 
 # Generate a certificate for Vault
 log "Generating a certificate for Vault..."
-docker exec -e VAULT_ADDR=$VAULT_ADDR -e VAULT_TOKEN=$VAULT_TOKEN vault vault write pki/issue/vault-dot-com common_name="$HOSTNAME" alt_names="$HOST_IP" ttl="8760h" > /tmp/vault-cert.json
+vault write -format=json pki_int/issue/$DOMAIN_NAME-dot-local \
+common_name="vault-tls" ip_sans="127.0.0.1" | tee \
+>(jq -r .data.certificate > $CERT_DIR/vault-tls-certificate.pem) \
+>(jq -r .data.issuing_ca > $CERT_DIR/vault-tls-issuing-ca.pem) \
+>(jq -r .data.private_key > $CERT_DIR/vault-tls-private-key.pem)
 
-# Extract the certificate and key
-VAULT_CERT=$(jq -r .data.certificate /tmp/vault-cert.json)
-VAULT_KEY=$(jq -r .data.private_key /tmp/vault-cert.json)
-VAULT_CA=$(jq -r .data.issuing_ca /tmp/vault-cert.json)
-
-# Save the certificate and key to files
-VAULT_COMPOSE_DIR="$HOME/docker-compose-configs/vault"
-echo "$VAULT_CERT" > "$VAULT_COMPOSE_DIR/vault/vault.crt"
-echo "$VAULT_KEY" > "$VAULT_COMPOSE_DIR/vault/vault.key"
-echo "$VAULT_CA" > /usr/local/share/ca-certificates/vault-ca.crt
+mkdir -p "$VAULT_COMPOSE_DIR/vault/config"
+cat > "$VAULT_COMPOSE_DIR/vault/config/vault.hcl" <<EOL
+listener "tcp" {
+  address = "0.0.0.0:8200"
+  tls_disable = 0
+  tls_cert_file = "$CERT_DIR/vault-tls-certificate.pem"
+  tls_key_file = "$CERT_DIR/vault-tls-private-key.pem"
+}
+storage "file" {
+  path = "/servers/vault/data"
+}
+ui = true
+EOL
 
 # Update Docker Compose to use HTTPS
 log "Updating Docker Compose to use HTTPS..."
@@ -56,18 +101,6 @@ services:
     command: server -config=/vault/config/vault.hcl
 EOL
 
-# Create Vault configuration file
-mkdir -p "$VAULT_COMPOSE_DIR/vault/config"
-cat > "$VAULT_COMPOSE_DIR/vault/config/vault.hcl" <<EOL
-listener "tcp" {
-  address = "0.0.0.0:8200"
-  tls_cert_file = "/vault/vault.crt"
-  tls_key_file = "/vault/vault.key"
-}
-storage "file" {
-  path = "/vault/data"
-}
-EOL
 
 # Restart Vault with HTTPS
 log "Restarting Vault with HTTPS..."
