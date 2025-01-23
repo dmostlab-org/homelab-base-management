@@ -46,6 +46,7 @@ export HOSTNAME
 export HOST_IP
 export DOMAIN
 
+
 # Run the scripts in order
 ./install_dependencies.sh
 ./setup_vault.sh
