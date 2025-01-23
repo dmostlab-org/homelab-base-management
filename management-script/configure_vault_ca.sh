@@ -65,7 +65,7 @@ mkdir -p $CERT_DIR
 # Generate a certificate for Vault
 log "Generating a certificate for Vault..."
 vault write -format=json pki_int/issue/$DOMAIN-dot-local \
-common_name="vault-tls" ip_sans="127.0.0.1,$HOST_IP" | tee \
+common_name="$HOSTNAME" ip_sans="127.0.0.1,$HOST_IP" | tee \
 >(jq -r .data.certificate > $CERT_DIR/vault-tls-certificate.pem) \
 >(jq -r .data.issuing_ca > $CERT_DIR/vault-tls-issuing-ca.pem) \
 >(jq -r .data.private_key > $CERT_DIR/vault-tls-private-key.pem)
