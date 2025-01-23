@@ -89,7 +89,7 @@ EOL
 # Update Docker Compose to use HTTPS
 log "Updating Docker Compose to use HTTPS..."
 cat > "$VAULT_COMPOSE_DIR/docker-compose.yml" <<EOL
-ervices:
+services:
   vault:
     image: hashicorp/vault:latest
     container_name: vault
