@@ -49,8 +49,8 @@ export DOMAIN
 
 # Run the scripts in order
 ./install_dependencies.sh
-./setup_vault.sh
 ./setup_portainer.sh
+./setup_vault.sh
 ./configure_vault_ca.sh
 ./configure_vault.sh
 
