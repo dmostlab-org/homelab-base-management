@@ -36,8 +36,8 @@ vault secrets enable -path=pki_int pki
 vault secrets tune -max-lease-ttl=43800h pki_int
 
 vault write -format=json pki_int/intermediate/generate/internal \
-     common_name="$DOMAIN_NAME Intermediate Authority" \
-     issuer_name="$DOMAIN_NAME-intermediate" \
+     common_name="$DOMAIN Intermediate Authority" \
+     issuer_name="$DOMAIN-intermediate" \
      | jq -r '.data.csr' > pki_intermediate.csr
 
 vault write -format=json pki/root/sign-intermediate \
@@ -50,7 +50,7 @@ vault write pki_int/intermediate/set-signed certificate=@intermediate.cert.pem
 
 
 #Create a role for generating certificates
-vault write pki_int/roles/$DOMAIN_NAME-dot-local \
+vault write pki_int/roles/$DOMAIN-dot-local \
      issuer_ref="$(vault read -field=default pki_int/config/issuers)" \
      allowed_domains="$DOMAIN_NAME" \
      allow_subdomains=true \
@@ -64,8 +64,8 @@ mkdir -p $CERT_DIR
 
 # Generate a certificate for Vault
 log "Generating a certificate for Vault..."
-vault write -format=json pki_int/issue/$DOMAIN_NAME-dot-local \
-common_name="vault-tls" ip_sans="127.0.0.1" | tee \
+vault write -format=json pki_int/issue/$DOMAIN-dot-local \
+common_name="vault-tls" ip_sans="127.0.0.1,$HOST_IP" | tee \
 >(jq -r .data.certificate > $CERT_DIR/vault-tls-certificate.pem) \
 >(jq -r .data.issuing_ca > $CERT_DIR/vault-tls-issuing-ca.pem) \
 >(jq -r .data.private_key > $CERT_DIR/vault-tls-private-key.pem)

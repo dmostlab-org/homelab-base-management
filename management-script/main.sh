@@ -23,7 +23,15 @@ if [ -z "$DOMAIN_NAME" ]; then
     exit 1
 fi
 
+# Extract the domain without the TLD
+DOMAIN=$(echo "$DOMAIN_NAME" | awk -F. '{OFS="."; NF--; print}')
+
 read -p "Enter the hostname for the SSL certificate (used for Vault's HTTPS configuration): " HOSTNAME
+if [ -z "$HOSTNAME" ]; then
+    log "Hostname is required"
+    exit 1
+fi
+
 HOST_IP=$(hostname -I | awk '{print $1}')
 log "Detected host IP: $HOST_IP"
 
@@ -36,6 +44,8 @@ chmod +x install_dependencies.sh setup_vault.sh setup_portainer.sh configure_vau
 export DOMAIN_NAME
 export HOSTNAME
 export HOST_IP
+export DOMAIN
+
 
 # Run the scripts in order
 ./install_dependencies.sh
