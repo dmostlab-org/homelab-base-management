@@ -17,7 +17,6 @@ sleep 10
 # Enable PKI secrets engine in Vault
 log "Enabling PKI secrets engine in Vault..."
 export VAULT_ADDR='http://127.0.0.1:8200'
-export VAULT_TOKEN='root'
 
 vault secrets enable pki
 vault secrets tune -max-lease-ttl=8760h pki
@@ -70,8 +69,10 @@ common_name="$HOSTNAME" ip_sans="127.0.0.1,$HOST_IP" | tee \
 >(jq -r .data.issuing_ca > $CERT_DIR/vault-tls-issuing-ca.pem) \
 >(jq -r .data.private_key > $CERT_DIR/vault-tls-private-key.pem)
 
-mkdir -p "$VAULT_COMPOSE_DIR/vault/config"
-cat > "$VAULT_COMPOSE_DIR/vault/config/vault.hcl" <<EOL
+#remove the default config file
+rm -r "$VAULT_COMPOSE_DIR/vault/config/config.hcl"
+
+cat > "$VAULT_COMPOSE_DIR/vault/config/config.hcl" <<EOL
 listener "tcp" {
   address = "0.0.0.0:8200"
   tls_disable = 0
@@ -81,6 +82,7 @@ listener "tcp" {
 storage "file" {
   path = "/servers/vault/data"
 }
+disable_mlock = true
 ui = true
 EOL
 
@@ -95,10 +97,13 @@ services:
     ports:
       - "8200:8200"
     environment:
-      VAULT_DEV_ROOT_TOKEN_ID: root
+      VAULT_ADDR: https://0.0.0.0:8200
     volumes:
-      - ./vault:/vault
-    command: server -config=/vault/config/vault.hcl
+      - vault_data:/vault/data
+      - $VAULT_COMPOSE_DIR/config:/vault/config
+    command: "server -config=/vault/config/config.hcl"
+volumes:
+  vault_data:
 EOL
 
 
